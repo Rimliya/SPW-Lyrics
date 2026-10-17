@@ -9,6 +9,8 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/GaBoron/SPW-Lyrics?color=2E8B57" alt="许可证"></a>
 </p>
 
+> **本 fork 的改动**：数据目录默认改为 `D:\SPW Lyrics`（D 盘不可写时回退 `%LOCALAPPDATA%`，可用 `SPW_LYRICS_HOME` 覆盖），首次启动会自动迁移旧缓存；构建由 GitHub Actions 完成。
+
 SPW Lyrics 是 [Salt Player for Windows（SPW）](https://github.com/Moriafly/SPW) 的歌词增强插件。播放歌曲时，插件会从多个来源查找歌词，按歌词质量和歌曲信息选择更合适的结果，并缓存到本地。
 
 ## 功能

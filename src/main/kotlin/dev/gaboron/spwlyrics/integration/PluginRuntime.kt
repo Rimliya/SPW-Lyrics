@@ -20,6 +20,7 @@ import dev.gaboron.spwlyrics.provider.LocalLyricsProvider
 import dev.gaboron.spwlyrics.provider.NeteaseMusicProvider
 import dev.gaboron.spwlyrics.provider.ProviderHttpClient
 import dev.gaboron.spwlyrics.provider.QqMusicProvider
+import dev.gaboron.spwlyrics.storage.DataDirectory
 import dev.gaboron.spwlyrics.storage.FileLyricsCache
 import dev.gaboron.spwlyrics.integration.manualui.ManualSearchWindow
 import dev.gaboron.spwlyrics.integration.manualui.ManualSearchOperations
@@ -43,9 +44,7 @@ object PluginRuntime {
     @OptIn(UnstableSpwWorkshopApi::class)
     fun install() {
         if (coordinator != null) return
-        val localData = System.getenv("LOCALAPPDATA")?.takeIf(String::isNotBlank)
-            ?.let(::Path) ?: Path(System.getProperty("user.home"))
-        val root = localData.resolve("SPW Lyrics")
+        val root = DataDirectory.root
         val cacheDirectory = root.resolve("cache")
         val cache = FileLyricsCache(cacheDirectory)
         val delays = FileLyricsDelaySettings(root.resolve("歌词延迟"))

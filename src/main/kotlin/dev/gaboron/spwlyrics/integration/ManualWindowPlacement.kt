@@ -3,17 +3,15 @@ package dev.gaboron.spwlyrics.integration
 import java.awt.GraphicsEnvironment
 import java.awt.Rectangle
 import java.awt.Window
+import dev.gaboron.spwlyrics.storage.DataDirectory
 import java.nio.file.Files
-import kotlin.io.path.Path
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /** Restores remembered window positions within the current display work areas. */
 internal object ManualWindowPlacement {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
-    private val directory = (System.getenv("LOCALAPPDATA")?.takeIf(String::isNotBlank)?.let(::Path)
-        ?: Path(System.getProperty("user.home")))
-        .resolve("SPW Lyrics")
+    private val directory = DataDirectory.root
 
     fun restore(window: Window, fileName: String = "manual-window-position.json"): Boolean = runCatching {
         val file = directory.resolve(fileName)
