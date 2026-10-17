@@ -5,6 +5,7 @@ import dev.gaboron.spwlyrics.domain.CandidateScore
 import dev.gaboron.spwlyrics.domain.LyricsCandidate
 import dev.gaboron.spwlyrics.domain.LyricsDocument
 import dev.gaboron.spwlyrics.domain.LyricsQuality
+import dev.gaboron.spwlyrics.domain.LyricsSimilarity
 import dev.gaboron.spwlyrics.domain.LyricsSource
 import dev.gaboron.spwlyrics.domain.MatchEngine
 import dev.gaboron.spwlyrics.domain.TrackQuery
@@ -35,11 +36,13 @@ class LyricsResolver(
     fun resolveAutomaticProgressively(
         query: TrackQuery,
         snapshotDeadlineNanos: Long,
+        reference: LyricsDocument? = null,
         onSnapshot: (ResolvedLyrics) -> Unit,
-    ): ResolvedLyrics? = resolveAutomatic(query, snapshotDeadlineNanos, LyricsQuality.PLAIN, onSnapshot)
+    ): ResolvedLyrics? = resolveAutomatic(query, snapshotDeadlineNanos, LyricsQuality.PLAIN, reference, onSnapshot)
 
     fun resolveAutomaticFully(
         query: TrackQuery,
+        reference: LyricsDocument? = null,
         onProgress: (LyricsResolutionProgress) -> Unit = {},
     ): ResolvedLyrics? {
         val now = System.nanoTime()
@@ -47,6 +50,7 @@ class LyricsResolver(
             query = query,
             snapshotDeadlineNanos = now,
             minimumQuality = LyricsQuality.PLAIN,
+            reference = reference,
             onSnapshot = {},
             onProgress = onProgress,
             completionDeadlineNanos = now + TimeUnit.MILLISECONDS.toNanos(FULL_SEARCH_TIMEOUT_MILLIS),
@@ -57,6 +61,7 @@ class LyricsResolver(
         query: TrackQuery,
         snapshotDeadlineNanos: Long,
         minimumQuality: LyricsQuality,
+        reference: LyricsDocument?,
         onSnapshot: (ResolvedLyrics) -> Unit,
         onProgress: (LyricsResolutionProgress) -> Unit = {},
         completionDeadlineNanos: Long = Long.MAX_VALUE,
@@ -71,6 +76,7 @@ class LyricsResolver(
                         query,
                         System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(PROVIDER_SEARCH_BUDGET_MILLIS),
                         minimumQuality,
+                        reference,
                     )
                 }
             },
@@ -178,11 +184,13 @@ class LyricsResolver(
         query: TrackQuery,
         deadlineNanos: Long,
         minimumQuality: LyricsQuality,
+        reference: LyricsDocument?,
     ): FetchedLyrics? {
         val winner = findWinner(provider, query, deadlineNanos) ?: return null
         if (System.nanoTime() >= deadlineNanos) return null
         val document = fetchDocument(provider, winner)
             ?.takeIf { it.quality.rank >= minimumQuality.rank }
+            ?.takeIf { LyricsSimilarity.accepts(reference, it) }
             ?: return null
         return FetchedLyrics(winner, document)
     }

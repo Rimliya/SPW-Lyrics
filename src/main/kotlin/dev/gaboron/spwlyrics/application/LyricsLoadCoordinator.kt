@@ -49,16 +49,18 @@ class LyricsLoadCoordinator(
     ): String? {
         current.set(query)
         val override = cache.getOverride(query)
+        var local: LyricsDocument? = null
         if (phase == LyricsLoadPhase.BEFORE_LOCAL) {
-            val local = if (override?.candidate == null) localTtml?.invoke() else null
+            local = if (override?.candidate == null) localTtml?.invoke() else null
             localLyrics.set(local?.let { query.key to it })
-            if (local != null) return render(query, local)
         } else if (override?.candidate == null) {
             // Native acceptance returns null to SPW, which may still call its after-missing hook.
-            localLyrics.get()?.takeIf { it.first == query.key }?.let { return render(query, it.second) }
+            local = localLyrics.get()?.takeIf { it.first == query.key }?.second
         }
         if (override?.local == true) return null
         val automaticLoadAllowed = replacementPolicy.allowsAutomaticLoad(phase)
+        // Local lyrics stay authoritative unless the policy asks for a verified plugin result.
+        if (local != null && !automaticLoadAllowed) return render(query, local)
         if (override?.candidate == null && !automaticLoadAllowed) return null
         cache.getLyrics(query)?.let { cached ->
             notifiedFailures.remove(query.key)
@@ -73,13 +75,13 @@ class LyricsLoadCoordinator(
             val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(INITIAL_RESOLUTION_SECONDS)
             val future = CompletableFuture.runAsync({ resolveAndRefresh(query, override?.candidate, deadline) }, executor)
             future.whenComplete { _, error ->
-                if (error != null && !future.isCancelled && override?.candidate == null) recordAutomaticFailure(query)
+                if (error != null && !future.isCancelled && override?.candidate == null && local == null) recordAutomaticFailure(query)
                 activeAutomaticLoads.remove(query.key, automaticToken)
                 inFlight.remove(query.key, future)
             }
             future
         }
-        return null
+        return local?.let { render(query, it) }
     }
 
     fun searchManual(query: TrackQuery, keywords: String, source: dev.gaboron.spwlyrics.domain.LyricsSource?) =
@@ -161,11 +163,13 @@ class LyricsLoadCoordinator(
     }
 
     private fun resolveAutomaticProgressively(query: TrackQuery, snapshotDeadlineNanos: Long) {
-        val final = resolver.resolveAutomaticProgressively(query, snapshotDeadlineNanos) { interim ->
+        val reference = localReference(query)
+        val final = resolver.resolveAutomaticProgressively(query, snapshotDeadlineNanos, reference) { interim ->
             applyAutomaticResult(query, interim)
         }
         if (final == null) {
-            recordAutomaticFailure(query)
+            // Local lyrics are already displayed; a rejected online result is not a failure.
+            if (reference == null) recordAutomaticFailure(query)
             return
         }
         if (automaticWasSuperseded(query)) return
@@ -199,7 +203,7 @@ class LyricsLoadCoordinator(
 
     private fun upgradeQualityAndRefresh(query: TrackQuery, fallback: ResolvedLyrics) {
         if (automaticWasSuperseded(query)) return
-        val upgraded = resolver.resolveAutomaticFully(query)
+        val upgraded = resolver.resolveAutomaticFully(query, localReference(query))
         if (automaticWasSuperseded(query)) return
         val cached = cache.getLyrics(query) ?: return
         if (cached.document != fallback.document) return
@@ -207,6 +211,9 @@ class LyricsLoadCoordinator(
             applyAutomaticResult(query, upgraded)
         }
     }
+
+    private fun localReference(query: TrackQuery): LyricsDocument? =
+        localLyrics.get()?.takeIf { it.first == query.key }?.second
 
     private fun resolvedFromCache(query: TrackQuery, cached: CachedLyrics): ResolvedLyrics = ResolvedLyrics(
         candidate = LyricsCandidate(
