@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "dev.gaboron.spwlyrics"
-version = "1.1.0-d.3"
+version = "1.1.0-d.4"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_25
@@ -53,7 +53,7 @@ spmod {
     PluginClass = "dev.gaboron.spwlyrics.integration.SpwLyricsPlugin"
     PluginId = "spw-lyrics"
     PluginName = "SPW Lyrics"
-    PluginProvider = "GaBoron"
+    PluginProvider = "GaBoron / Solitaire"
     PluginVersion = project.version.toString()
     PluginDescription = "为 Salt Player for Windows 自动搜索、匹配并加载多来源歌词。"
     PluginOpenSourceUrl = "https://github.com/GaBoron/SPW-Lyrics"
