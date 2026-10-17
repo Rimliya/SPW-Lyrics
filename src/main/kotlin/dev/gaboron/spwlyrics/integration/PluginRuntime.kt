@@ -12,6 +12,7 @@ import dev.gaboron.spwlyrics.application.LyricsResolver
 import dev.gaboron.spwlyrics.application.LyricsOutputRouter
 import dev.gaboron.spwlyrics.domain.LyricsCandidate
 import dev.gaboron.spwlyrics.domain.LyricsDocument
+import dev.gaboron.spwlyrics.domain.LyricsSimilarity
 import dev.gaboron.spwlyrics.domain.LyricsSource
 import dev.gaboron.spwlyrics.domain.TrackQuery
 import dev.gaboron.spwlyrics.provider.AmllProvider
@@ -79,6 +80,7 @@ object PluginRuntime {
             notify = ::toastWarning,
             delays = delays,
             output = output,
+            similarityLevel = { settings?.similarityLevel() ?: LyricsSimilarity.Level.STANDARD },
         )
         val batch = LyricsBatchProcessor(
             loadLibrary = libraryTracks::load,

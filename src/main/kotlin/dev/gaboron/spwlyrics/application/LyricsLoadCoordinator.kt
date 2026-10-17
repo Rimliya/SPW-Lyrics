@@ -2,6 +2,7 @@ package dev.gaboron.spwlyrics.application
 
 import dev.gaboron.spwlyrics.domain.LyricsCandidate
 import dev.gaboron.spwlyrics.domain.LyricsDocument
+import dev.gaboron.spwlyrics.domain.LyricsSimilarity
 import dev.gaboron.spwlyrics.domain.TrackQuery
 import dev.gaboron.spwlyrics.storage.CachedLyrics
 import dev.gaboron.spwlyrics.storage.LyricsCache
@@ -29,6 +30,7 @@ class LyricsLoadCoordinator(
     },
     private val delays: LyricsDelaySettings? = null,
     private val output: LyricsOutputRouter? = null,
+    private val similarityLevel: () -> LyricsSimilarity.Level = { LyricsSimilarity.Level.STANDARD },
 ) : AutoCloseable {
     private val refreshRetrier = LyricsRefreshRetrier(refreshBridge, notify)
     private val current = AtomicReference<TrackQuery?>()
@@ -164,7 +166,7 @@ class LyricsLoadCoordinator(
 
     private fun resolveAutomaticProgressively(query: TrackQuery, snapshotDeadlineNanos: Long) {
         val reference = localReference(query)
-        val final = resolver.resolveAutomaticProgressively(query, snapshotDeadlineNanos, reference) { interim ->
+        val final = resolver.resolveAutomaticProgressively(query, snapshotDeadlineNanos, reference, similarityLevel()) { interim ->
             applyAutomaticResult(query, interim)
         }
         if (final == null) {
@@ -203,7 +205,7 @@ class LyricsLoadCoordinator(
 
     private fun upgradeQualityAndRefresh(query: TrackQuery, fallback: ResolvedLyrics) {
         if (automaticWasSuperseded(query)) return
-        val upgraded = resolver.resolveAutomaticFully(query, localReference(query))
+        val upgraded = resolver.resolveAutomaticFully(query, localReference(query), similarityLevel())
         if (automaticWasSuperseded(query)) return
         val cached = cache.getLyrics(query) ?: return
         if (cached.document != fallback.document) return

@@ -37,12 +37,15 @@ class LyricsResolver(
         query: TrackQuery,
         snapshotDeadlineNanos: Long,
         reference: LyricsDocument? = null,
+        similarity: LyricsSimilarity.Level = LyricsSimilarity.Level.STANDARD,
         onSnapshot: (ResolvedLyrics) -> Unit,
-    ): ResolvedLyrics? = resolveAutomatic(query, snapshotDeadlineNanos, LyricsQuality.PLAIN, reference, onSnapshot)
+    ): ResolvedLyrics? =
+        resolveAutomatic(query, snapshotDeadlineNanos, LyricsQuality.PLAIN, reference, similarity, onSnapshot)
 
     fun resolveAutomaticFully(
         query: TrackQuery,
         reference: LyricsDocument? = null,
+        similarity: LyricsSimilarity.Level = LyricsSimilarity.Level.STANDARD,
         onProgress: (LyricsResolutionProgress) -> Unit = {},
     ): ResolvedLyrics? {
         val now = System.nanoTime()
@@ -51,6 +54,7 @@ class LyricsResolver(
             snapshotDeadlineNanos = now,
             minimumQuality = LyricsQuality.PLAIN,
             reference = reference,
+            similarity = similarity,
             onSnapshot = {},
             onProgress = onProgress,
             completionDeadlineNanos = now + TimeUnit.MILLISECONDS.toNanos(FULL_SEARCH_TIMEOUT_MILLIS),
@@ -62,6 +66,7 @@ class LyricsResolver(
         snapshotDeadlineNanos: Long,
         minimumQuality: LyricsQuality,
         reference: LyricsDocument?,
+        similarity: LyricsSimilarity.Level,
         onSnapshot: (ResolvedLyrics) -> Unit,
         onProgress: (LyricsResolutionProgress) -> Unit = {},
         completionDeadlineNanos: Long = Long.MAX_VALUE,
@@ -77,6 +82,7 @@ class LyricsResolver(
                         System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(PROVIDER_SEARCH_BUDGET_MILLIS),
                         minimumQuality,
                         reference,
+                        similarity,
                     )
                 }
             },
@@ -185,12 +191,13 @@ class LyricsResolver(
         deadlineNanos: Long,
         minimumQuality: LyricsQuality,
         reference: LyricsDocument?,
+        similarity: LyricsSimilarity.Level,
     ): FetchedLyrics? {
         val winner = findWinner(provider, query, deadlineNanos) ?: return null
         if (System.nanoTime() >= deadlineNanos) return null
         val document = fetchDocument(provider, winner)
             ?.takeIf { it.quality.rank >= minimumQuality.rank }
-            ?.takeIf { LyricsSimilarity.accepts(reference, it) }
+            ?.takeIf { LyricsSimilarity.accepts(reference, it, similarity) }
             ?: return null
         return FetchedLyrics(winner, document)
     }

@@ -11,7 +11,19 @@ object LyricsSimilarity {
     const val MIN_REFERENCE_LINES = 5
     const val MIN_LINE_CHARACTERS = 4
     const val LINE_MATCH = 0.62
-    const val REJECT_BELOW = 0.25
+
+    /** Rejection floor, configurable from the plugin settings. */
+    enum class Level(val configValue: String, val rejectBelow: Double) {
+        STRICT("strict", 0.40),
+        STANDARD("standard", 0.25),
+        OFF("off", 0.0),
+        ;
+
+        companion object {
+            fun fromConfigValue(value: String): Level =
+                entries.firstOrNull { it.configValue == value } ?: STANDARD
+        }
+    }
 
     data class Result(val coverage: Double, val comparable: Boolean)
 
@@ -31,14 +43,27 @@ object LyricsSimilarity {
     }
 
     /** A null reference means the track has no local lyrics to compare against. */
-    fun accepts(reference: LyricsDocument?, candidate: LyricsDocument): Boolean =
-        reference == null || compare(reference, candidate).let { !it.comparable || it.coverage >= REJECT_BELOW }
+    fun accepts(
+        reference: LyricsDocument?,
+        candidate: LyricsDocument,
+        level: Level = Level.STANDARD,
+    ): Boolean {
+        if (level == Level.OFF || reference == null) return true
+        return compare(reference, candidate).let { !it.comparable || it.coverage >= level.rejectBelow }
+    }
 
     private fun usableLines(document: LyricsDocument): List<String> = document.lines.asSequence()
         .filterNot { it.background }
-        .map { it.text.trim() }
+        .map(::lineText)
         .filter { line -> line.count(Char::isLetterOrDigit) >= MIN_LINE_CHARACTERS }
         .toList()
+
+    /** Karaoke JSON may leave the line text empty and only fill the word list. */
+    private fun lineText(line: LyricLine): String {
+        val text = line.text.trim()
+        if (text.isNotEmpty()) return text
+        return line.words.joinToString(separator = "") { it.text }.trim()
+    }
 
     private fun coverage(
         source: List<TextNormalizer.PreparedText>,

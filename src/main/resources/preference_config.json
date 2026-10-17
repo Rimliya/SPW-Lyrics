@@ -14,6 +14,15 @@
           "default_value": "always"
         },
         {
+          "key": "similarity_level",
+          "type": "list",
+          "title": "歌词相似度校验",
+          "summary": "自动替换前先与本地歌词逐行比对，避免匹配到别的歌；严格模式下要求更高",
+          "entries": ["严格", "标准", "关闭"],
+          "entry_values": ["strict", "standard", "off"],
+          "default_value": "standard"
+        },
+        {
           "type": "button",
           "title": "打开手动搜索",
           "summary": "无需快捷键，直接打开当前歌曲的手动搜索窗口",
