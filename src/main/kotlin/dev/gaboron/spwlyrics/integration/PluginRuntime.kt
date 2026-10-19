@@ -8,6 +8,7 @@ import dev.gaboron.spwlyrics.application.AutomaticReplacementPolicy
 import dev.gaboron.spwlyrics.application.LyricsLoadPhase
 import dev.gaboron.spwlyrics.application.LyricsLoadCoordinator
 import dev.gaboron.spwlyrics.application.LyricsBatchProcessor
+import dev.gaboron.spwlyrics.application.LyricsPrefetcher
 import dev.gaboron.spwlyrics.application.LyricsResolver
 import dev.gaboron.spwlyrics.application.LyricsOutputRouter
 import dev.gaboron.spwlyrics.domain.LyricsCandidate
@@ -36,13 +37,16 @@ object PluginRuntime {
     @Volatile private var batchProcessor: LyricsBatchProcessor? = null
     @Volatile private var batchWindow: BatchProcessingWindow? = null
     @Volatile private var settings: PluginSettings? = null
+    @Volatile private var prefetcher: LyricsPrefetcher? = null
     @Volatile private var manualWindow: ManualSearchWindow? = null
     @Volatile private var metadataWindow: MetadataEditorWindow? = null
     @Volatile private var manualSearchShortcut: SpwManualSearchBinding? = null
     @Volatile private var metadataEditorShortcut: SpwMetadataEditorBinding? = null
     @Volatile private var cacheFolderOpener: CacheFolderOpener? = null
     private val libraryTracks = SpwLibraryTrackSource()
+    private val nextTracks = SpwNextTrackSource(libraryTracks)
     private val localTtmlLyrics = LocalTtmlLyricsLoader()
+    private const val PREFETCH_DELAY_MILLIS = 2_000L
 
     @Synchronized
     @OptIn(UnstableSpwWorkshopApi::class)
@@ -125,6 +129,24 @@ object PluginRuntime {
             }
         }, ::toastWarning)
         settings = PluginSettings(WorkshopApi.manager.createConfigManager())
+        prefetcher = LyricsPrefetcher(
+            cache = cache,
+            nextTrack = nextTracks::next,
+            resolve = { query ->
+                val local = query.path.takeIf(String::isNotBlank)?.let(localTtmlLyrics::load)
+                resolver.resolveAutomaticFully(
+                    query,
+                    reference = local,
+                    similarity = settings?.similarityLevel() ?: LyricsSimilarity.Level.STANDARD,
+                )?.let(resolver::toCache)
+            },
+            enabled = { settings?.prefetchNextTrack() == true },
+            policy = { settings?.automaticReplacementPolicy() ?: AutomaticReplacementPolicy.ALWAYS },
+            hasLocalLyrics = { query ->
+                query.path.isNotBlank() && localTtmlLyrics.load(query.path) != null
+            },
+            delayMillis = PREFETCH_DELAY_MILLIS,
+        )
         val shortcut = SpwManualSearchBinding(::openManualSearch)
         manualSearchShortcut = shortcut
         runCatching { shortcut.register() }.onFailure {
@@ -202,6 +224,8 @@ object PluginRuntime {
         metadataWindow?.close()
         metadataWindow = null
         cacheFolderOpener = null
+        prefetcher?.close()
+        prefetcher = null
         settings?.close()
         settings = null
         batchWindow?.close()
@@ -219,6 +243,7 @@ object PluginRuntime {
         localTtml: (() -> LyricsDocument?)? = null,
     ): String? {
         val query = libraryTracks.fromLyricsCallback(mediaItem)
+        prefetcher?.onTrackLoaded(query)
         return coordinator?.onLoad(
             query,
             phase,
@@ -232,4 +257,5 @@ object PluginRuntime {
     private fun toastWarning(message: String) {
         runCatching { WorkshopApi.ui.toast(message, WorkshopApi.Ui.ToastType.Warning) }
     }
+
 }
