@@ -55,7 +55,7 @@ internal class SpwLibraryTrackSource {
             .takeIf { it >= 0 }
             ?: tracks.indexOfFirst { current.path.isNotBlank() && it.path.equals(current.path, ignoreCase = true) }
         if (index < 0) return null
-        return tracks.drop(index + 1)
+        return tracks.asSequence().drop(index + 1)
             .firstOrNull { it.readable && it.title.isNotBlank() }
             ?.toQuery()
     }
